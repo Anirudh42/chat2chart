@@ -1,12 +1,20 @@
 import streamlit as st
-from io import StringIO
+from io import StringIO, BytesIO
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 
 def main():
-    st.title("Simple Chat App with File Upload")
+    st.title("Simple Chat App with File Upload and Chart")
+
+    # Initialize session state for storing the DataFrame
+    if "df" not in st.session_state:
+        st.session_state.df = None
+
+    # Initialize chat history
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
 
     # File uploader
     uploaded_file = st.file_uploader(
@@ -30,65 +38,71 @@ def main():
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "application/vnd.ms-excel",
         ]:
-            df = pd.read_excel(uploaded_file)
-            st.dataframe(df)
+            st.session_state.df = pd.read_excel(uploaded_file)
+            st.dataframe(st.session_state.df)
 
-            if st.button("Create Box Plot"):
-                create_box_plot_with_summary(df)
-
-    # Chat interface
-    st.subheader("Chat")
-
-    # Initialize chat history
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+    # Create Box Plot button
+    if st.button("Create Box Plot") and st.session_state.df is not None:
+        chart = create_box_plot_with_summary(
+            st.session_state.df, "Parental_Involvement", "Exam_Score"
+        )
+        if isinstance(chart, dict):
+            st.session_state.messages.append(
+                {
+                    "role": "assistant",
+                    "content": "Here's the box plot you requested:",
+                    "chart": chart,
+                }
+            )
+        else:
+            st.session_state.messages.append(
+                {"role": "assistant", "content": f"Error creating chart: {chart}"}
+            )
 
     # Display chat messages
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
+            if "chart" in message:
+                st.image(message["chart"]["plot"])
+                st.write(message["chart"]["summary"], unsafe_allow_html=True)
 
     # Chat input
     if prompt := st.chat_input("What is your message?"):
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
 
-        # Display user message
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
         # Add assistant response to chat history (you can replace this with actual AI response)
         response = f"Echo: {prompt}"
         st.session_state.messages.append({"role": "assistant", "content": response})
 
-        # Display assistant response
-        with st.chat_message("assistant"):
-            st.markdown(response)
+        # Force a rerun to display the new messages immediately
+        st.rerun()
 
 
-def create_box_plot_with_summary(df):
+def create_box_plot_with_summary(df, category_column, value_column):
     try:
         # Check if required columns exist
-        required_columns = ["Parental_Involvement", "Exam_Score"]
-        if not all(col in df.columns for col in required_columns):
-            missing_columns = [col for col in required_columns if col not in df.columns]
-            st.error(f"Missing required columns: {', '.join(missing_columns)}")
-            return
+        if category_column not in df.columns or value_column not in df.columns:
+            missing_columns = [
+                col for col in [category_column, value_column] if col not in df.columns
+            ]
+            return f"Error: Missing required columns: {', '.join(missing_columns)}"
 
         # Create a box plot
         fig, ax = plt.subplots(figsize=(10, 6))
-        sns.boxplot(x="Parental_Involvement", y="Exam_Score", data=df, ax=ax)
+        sns.boxplot(x=category_column, y=value_column, data=df, ax=ax)
 
         # Customize the chart
-        plt.title("Distribution of Exam Scores by Parental Involvement")
-        plt.xlabel("Parental Involvement")
-        plt.ylabel("Exam Score")
+        plt.title(f"Distribution of {value_column} by {category_column}")
+        plt.xlabel(category_column)
+        plt.ylabel(value_column)
         plt.xticks(rotation=45, ha="right")
 
         # Add individual data points
         sns.stripplot(
-            x="Parental_Involvement",
-            y="Exam_Score",
+            x=category_column,
+            y=value_column,
             data=df,
             color="black",
             size=4,
@@ -99,16 +113,22 @@ def create_box_plot_with_summary(df):
         # Adjust layout
         plt.tight_layout()
 
-        # Display the chart in Streamlit
-        st.pyplot(fig)
+        # Save the plot to a buffer
+        buf = BytesIO()
+        plt.savefig(buf, format="png")
+        buf.seek(0)
 
-        # Display summary statistics
-        st.write("Summary Statistics:")
-        summary = df.groupby("Parental_Involvement")["Exam_Score"].describe()
-        st.write(summary)
+        # Clear the current figure
+        plt.clf()
+
+        # Generate summary statistics
+        summary = df.groupby(category_column)[value_column].describe()
+        summary_html = summary.to_html()
+
+        return {"plot": buf, "summary": summary_html}
 
     except Exception as e:
-        st.error(f"An error occurred while creating the chart: {str(e)}")
+        return f"An error occurred while creating the chart: {str(e)}"
 
 
 if __name__ == "__main__":
