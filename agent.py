@@ -9,10 +9,8 @@ import os
 from prompt import PANDAS_AGENT_PROMPT
 import streamlit as st
 
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-
-
 def chat_with_dataframe(df_agent, user_message):
+    client = OpenAI(api_key=st.session_state.openai_key)
     system_prompt = PANDAS_AGENT_PROMPT.format(
         COLUMNS="\n".join(df_agent.get_column_names()),
         DF_DESCRIPTION=df_agent.describe_dataframe().to_string(),

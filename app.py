@@ -10,6 +10,10 @@ import base64
 
 def main():
     st.title("Chat2Chart: Data Analysis Assistant")
+    # Add OPENAI_KEY input in sidebar
+    openai_key = st.sidebar.text_input("Enter your OpenAI API Key", type="password")
+    if openai_key:
+        st.session_state.openai_key = openai_key
 
     # Initialize session state
     if "df" not in st.session_state:
