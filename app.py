@@ -3,7 +3,7 @@ from io import StringIO, BytesIO
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from pandas_agent import PandasAgent
+from pandas_agent import create_pandas_agent
 from agent import chat_with_dataframe
 import base64
 
@@ -38,10 +38,10 @@ def main():
             st.session_state.df = pd.read_excel(uploaded_file)
         elif uploaded_file.type == "text/csv":
             st.session_state.df = pd.read_csv(uploaded_file)
-        
+
         if st.session_state.df is not None:
             st.dataframe(st.session_state.df)
-            st.session_state.pandas_agent = PandasAgent(st.session_state.df)
+            st.session_state.pandas_agent = create_pandas_agent(st.session_state.df)
             st.success("Data loaded successfully! You can now chat with your data.")
 
     # Display chat messages
@@ -63,9 +63,9 @@ def main():
             st.session_state.messages.append({"role": "user", "content": prompt})
 
             # Get response from chat_with_dataframe
-            response = chat_with_dataframe(prompt)
+            response = chat_with_dataframe(st.session_state.pandas_agent, prompt)
             with st.chat_message("assistant"):
-                if isinstance(response,dict) and "image" in response:
+                if isinstance(response, dict) and "image" in response:
                     st.image(response["image"])
                 else:
                     st.markdown(response)
